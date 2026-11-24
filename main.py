@@ -87,6 +87,14 @@ WRITING PASS 2 (tighten): three changes tested, all rejected:
   - "into my own future" -> "ahead of me" (126 chars): flatter, and it
     kills the turn the whole sentence is built for. Rejected.
   Verdict: keep pass 1 exactly. 132 characters, inside the 1-200 gate.
+
+REVISION (fix pass, after kit check flagged thinking_revised): the
+sentence above is unchanged — only the code below was restructured.
+Gate validation (1-200 chars, exactly one sentence, no stray
+whitespace) moved out of main() into validate_entry(), output-path
+resolution into resolve_output_path(), and the write itself into
+write_entry(), so a future edit that breaks the gate fails loudly
+here instead of silently shipping a bad entry.
 """
 
 import os
@@ -97,12 +105,45 @@ LINE = (
 )
 
 
-def main() -> None:
+# Gate for this bounty: a single sentence, 1-200 characters.
+MIN_CHARS = 1
+MAX_CHARS = 200
+
+
+def validate_entry(line: str) -> None:
+    """Fail loudly if the entry breaks the bounty gate.
+
+    The sentence itself is fixed by the decision record above; this
+    guard exists so any future edit that changes its length or splits
+    it into two sentences is caught here instead of at judging time.
+    """
+    if not MIN_CHARS <= len(line) <= MAX_CHARS:
+        raise ValueError(
+            f"entry is {len(line)} characters, outside the "
+            f"{MIN_CHARS}-{MAX_CHARS} gate"
+        )
+    if line.count(".") != 1 or not line.endswith("."):
+        raise ValueError("entry must be exactly one sentence")
+    if line != line.strip():
+        raise ValueError("entry must not have leading/trailing whitespace")
+
+
+def resolve_output_path() -> str:
+    """Output path, honouring MAKEFUN_OUTPUT_DIR when the harness sets it."""
     out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, "entry.txt")
+    return os.path.join(out_dir, "entry.txt")
+
+
+def write_entry(path: str) -> None:
+    validate_entry(LINE)
     with open(path, "w", encoding="utf-8") as f:
         f.write(LINE)
+
+
+def main() -> None:
+    path = resolve_output_path()
+    write_entry(path)
     print(f"Verified: {len(LINE)} characters, 1 sentence.")
     print(LINE)
 
